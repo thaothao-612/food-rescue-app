@@ -67,7 +67,7 @@ export async function PATCH(request: Request) {
     );
   }
 
-  if (!reservation.products || reservation.products.store_id !== store.id) {
+  if (!reservation.products || (reservation.products as any).store_id !== store.id) {
     return NextResponse.json(
       { message: "Mã này không thuộc cửa hàng của bạn" },
       { status: 403 }
