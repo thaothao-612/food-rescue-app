@@ -32,6 +32,13 @@ function CategoriesContent() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>("category");
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+  }, []);
 
   const { data, isLoading } = useSWR<Product[]>("products", fetcher);
 
@@ -166,13 +173,13 @@ function CategoriesContent() {
             <span>🧺</span>
             <span className="font-semibold">Danh mục</span>
           </Link>
-          <Link href="/my-orders" className="flex flex-col items-center gap-0.5 text-gray-500">
+          <Link href={user ? "/my-orders" : "/auth"} className="flex flex-col items-center gap-0.5 text-gray-500">
             <span>🧾</span>
             <span>Đơn hàng</span>
           </Link>
-          <Link href="/profile" className="flex flex-col items-center gap-0.5 text-gray-500">
+          <Link href={user ? "/profile" : "/auth"} className="flex flex-col items-center gap-0.5 text-gray-500">
             <span>👤</span>
-            <span>Cá nhân</span>
+            <span>{user ? "Cá nhân" : "Đăng nhập"}</span>
           </Link>
         </div>
       </nav>

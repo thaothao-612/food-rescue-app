@@ -72,8 +72,13 @@ export default function HomePage() {
   const [search, setSearch] = useState("");
   const [userLocation, setUserLocation] = useState<string>("Đang xác định vị trí...");
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
@@ -353,18 +358,18 @@ export default function HomePage() {
             <span>Bản đồ</span>
           </button>
           <Link
-            href="/my-orders"
+            href={user ? "/my-orders" : "/auth"}
             className="flex flex-col items-center gap-0.5 text-gray-500"
           >
             <span>🧾</span>
             <span>Đơn hàng</span>
           </Link>
           <Link
-            href="/profile"
+            href={user ? "/profile" : "/auth"}
             className="flex flex-col items-center gap-0.5 text-gray-500"
           >
             <span>👤</span>
-            <span>Cá nhân</span>
+            <span>{user ? "Cá nhân" : "Đăng nhập"}</span>
           </Link>
         </div>
       </nav>
