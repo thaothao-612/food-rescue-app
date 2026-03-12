@@ -68,10 +68,10 @@ function CategoriesContent() {
         <div className="h-8 w-8" />
       </header>
 
-      <div className="mb-4 flex justify-center border-b border-orange-100 bg-white">
-        <div className="-mb-px flex gap-8 px-4 text-base font-bold text-gray-500">
-          <button type="button" onClick={() => setActiveTab("category")} className={`py-3 transition-all ${activeTab === 'category' ? 'border-b-2 border-[#FF6B00] text-[#FF6B00]' : ''}`}>Theo Loại hàng</button>
-          <button type="button" onClick={() => setActiveTab("store")} className={`py-3 transition-all ${activeTab === 'store' ? 'border-b-2 border-[#FF6B00] text-[#FF6B00]' : ''}`}>Theo Cửa hàng</button>
+      <div className="mb-4 flex justify-center border-b border-orange-100 bg-white sticky top-[56px] z-20">
+        <div className="-mb-px flex gap-12 px-4 text-sm font-bold text-gray-500">
+          <button type="button" onClick={() => setActiveTab("category")} className={`py-3 transition-all ${activeTab === 'category' ? 'border-b-2 border-[#FF6B00] text-[#FF6B00]' : 'text-gray-400'}`}>Theo Loại hàng</button>
+          <button type="button" onClick={() => setActiveTab("store")} className={`py-3 transition-all ${activeTab === 'store' ? 'border-b-2 border-[#FF6B00] text-[#FF6B00]' : 'text-gray-400'}`}>Theo Cửa hàng</button>
         </div>
       </div>
 
