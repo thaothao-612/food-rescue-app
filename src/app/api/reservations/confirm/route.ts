@@ -13,6 +13,15 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  // Lớp bảo vệ: Chỉ cho phép store_owner truy cập
+  const userRole = (user.user_metadata as any)?.role;
+  if (userRole !== 'store_owner') {
+    return NextResponse.json(
+      { message: "Chỉ chủ cửa hàng mới có quyền thực hiện hành động này." },
+      { status: 403 }
+    );
+  }
+
   const body = await request.json().catch(() => null);
 
   if (!body?.qr_code) {
@@ -23,6 +32,7 @@ export async function PATCH(request: Request) {
   }
 
   const qrCode = String(body.qr_code);
+  console.log(`[CONFIRM] Received QR Code to confirm: ${qrCode}`);
 
   // Lấy cửa hàng của user
   const { data: store, error: storeError } = await supabase
@@ -57,17 +67,18 @@ export async function PATCH(request: Request) {
       )
     `
     )
-    .eq("qr_code", qrCode)
+    .ilike("qr_code", `${qrCode.trim()}%`)
     .maybeSingle();
 
   if (reservationError || !reservation) {
+    console.error(`[CONFIRM] QR Code not found in database: ${qrCode}`, reservationError);
     return NextResponse.json(
       { message: "Mã không hợp lệ" },
       { status: 404 }
     );
   }
 
-  if (!reservation.products || (reservation.products as any).store_id !== store.id) {
+  if (!reservation.products || reservation.products.store_id !== store.id) {
     return NextResponse.json(
       { message: "Mã này không thuộc cửa hàng của bạn" },
       { status: 403 }

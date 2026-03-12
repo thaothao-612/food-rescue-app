@@ -2,6 +2,22 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { createServerSupabaseClient } from "@/lib/supabaseServer";
 
+export async function GET() {
+  const supabase = await createServerSupabaseClient();
+  // getUser() sẽ tự động làm mới session và gọi setAll() nếu cần
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  // Trả về headers để tránh caching và đảm bảo cookie được gửi đi
+  return NextResponse.json(
+    { authenticated: !!user },
+    {
+      headers: {
+        "Cache-Control": "no-store, max-age=0",
+      },
+    }
+  );
+}
+
 export async function POST(request: Request) {
   const supabase = await createServerSupabaseClient();
 
@@ -33,82 +49,50 @@ export async function POST(request: Request) {
     );
   }
 
-  // Lấy thông tin sản phẩm hiện tại
-  const {
-    data: product,
-    error: productError,
-  } = await supabase
-    .from("products")
-    .select("id, quantity, is_active, expiry_date")
-    .eq("id", productId)
-    .single();
+  // Gọi RPC V2 để cập nhật số lượng và nhận lại lý do chi tiết
+  const { data: rpcResult, error: rpcError } = await supabase.rpc('reserve_product', {
+    p_product_id: productId,
+    p_quantity: quantity
+  });
 
-  if (productError || !product) {
+  if (rpcError) {
+    console.error(`[POST /api/reservations] RPC Error:`, rpcError);
     return NextResponse.json(
-      { message: "Sản phẩm không tồn tại" },
-      { status: 404 }
+      { message: "Lỗi khi gọi hàm xử lý của database: " + rpcError.message },
+      { status: 500 }
     );
   }
 
-  if (!product.is_active) {
-    return NextResponse.json(
-      { message: "Deal này đã tạm dừng" },
-      { status: 400 }
-    );
-  }
-
-  if (product.quantity < quantity) {
-    return NextResponse.json(
-      { message: "Không đủ số lượng còn lại" },
-      { status: 400 }
-    );
-  }
-
-  // Không cho giữ chỗ nếu đã hết hạn sử dụng
-  if (product.expiry_date) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const expiry = new Date(product.expiry_date as string);
-    if (expiry.getTime() < today.getTime()) {
-      return NextResponse.json(
-        { message: "Deal này đã hết hạn." },
-        { status: 400 }
-      );
+  // Xử lý kết quả trả về từ RPC
+  if (rpcResult !== 'SUCCESS') {
+    let userMessage = "Giữ chỗ thất bại. Vui lòng thử lại.";
+    switch (rpcResult) {
+      case 'PRODUCT_NOT_FOUND':
+        userMessage = "Sản phẩm này không còn tồn tại trong hệ thống.";
+        break;
+      case 'PRODUCT_INACTIVE':
+        userMessage = "Deal này vừa được chủ cửa hàng tạm dừng.";
+        break;
+      case 'INSUFFICIENT_STOCK':
+        userMessage = "Deal vừa được người khác đặt hết. Số lượng không đủ.";
+        break;
+      default:
+        userMessage = `Lỗi từ hệ thống: ${rpcResult}`;
+        break;
     }
-  }
-
-  // Cập nhật quantity với optimistic concurrency để giảm race condition
-  const {
-    data: updatedProduct,
-    error: updateError,
-  } = await supabase
-    .from("products")
-    .update({ quantity: product.quantity - quantity })
-    .eq("id", productId)
-    .eq("quantity", product.quantity)
-    .select("id")
-    .single();
-
-  if (updateError || !updatedProduct) {
-    return NextResponse.json(
-      { message: "Deal vừa được đặt hết. Vui lòng chọn deal khác." },
-      { status: 409 }
-    );
+    return NextResponse.json({ message: userMessage }, { status: 409 });
   }
 
   const qrCode = randomUUID();
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
-  const {
-    data: reservation,
-    error: reservationError,
-  } = await supabase
+  const { data: reservation, error: reservationError } = await supabase
     .from("reservations")
     .insert({
       user_id: user.id,
       product_id: productId,
       quantity,
-      qr_code: qrCode,
+      qr_code: qrCode, // Sử dụng mã đã tạo
       status: "Reserved",
       expires_at: expiresAt,
     })

@@ -92,7 +92,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
         <div className="mt-auto space-y-2 pt-1">
           <p className="text-[11px] text-gray-500">
-            {product.store.name} • {product.store.address}
+            {product.store?.name} {product.store?.address ? `• ${product.store.address}` : ""}
           </p>
           <button
             type="button"

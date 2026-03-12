@@ -1,6 +1,6 @@
  "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import useSWR from "swr";
 import { supabase } from "@/lib/supabase";
 import { Product, ProductCategory, Store } from "@/types";
@@ -66,6 +66,53 @@ export default function HomePage() {
   const [filter, setFilter] = useState<FilterTab>("all");
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [search, setSearch] = useState("");
+  const [userLocation, setUserLocation] = useState<string>("Đang xác định vị trí...");
+  const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
+
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          setUserCoords([latitude, longitude]);
+          try {
+            // Sử dụng Nominatim API của OpenStreetMap để lấy địa chỉ từ tọa độ
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+              {
+                headers: {
+                  "Accept-Language": "vi", // Ưu tiên tiếng Việt
+                },
+              }
+            );
+            const data = await response.json();
+            
+            // Lấy thông tin địa chỉ rút gọn (quận/huyện, tỉnh/thành phố)
+            const address = data.address;
+            const district = address.suburb || address.district || address.town || address.village || "";
+            const city = address.city || address.province || address.state || "";
+            
+            if (district && city) {
+              setUserLocation(`${district}, ${city}`);
+            } else if (city) {
+              setUserLocation(city);
+            } else {
+              setUserLocation(data.display_name.split(',')[0]);
+            }
+          } catch (error) {
+            console.error("Lỗi lấy địa chỉ:", error);
+            setUserLocation("Hồ Chí Minh, Việt Nam");
+          }
+        },
+        (error) => {
+          console.error("Lỗi Geolocation:", error);
+          setUserLocation("Vị trí chưa được cấp quyền");
+        }
+      );
+    } else {
+      setUserLocation("Trình duyệt không hỗ trợ vị trí");
+    }
+  }, []);
 
   const { data, isLoading, error } = useSWR<Product[]>(
     "products",
@@ -170,8 +217,8 @@ export default function HomePage() {
     <div className="flex min-h-screen flex-col bg-[#FFFDF8]">
       <header className="flex items-center justify-between px-4 pb-3 pt-4">
         <div className="flex flex-col gap-1">
-          <div className="text-[11px] text-gray-500">
-            Quận 1, TP. HCM
+          <div className="text-[11px] text-gray-500 flex items-center gap-1">
+            <span className="text-[10px]">📍</span> {userLocation}
           </div>
           <div className="flex items-center gap-2">
             <span className="text-2xl">🍊</span>
@@ -269,7 +316,10 @@ export default function HomePage() {
           renderContent()
         ) : (
           <div className="h-[450px] overflow-hidden rounded-2xl bg-gray-100">
-            <DynamicMapView stores={groupedStores as any} />
+            <DynamicMapView 
+              stores={groupedStores as any} 
+              userCoords={userCoords}
+            />
           </div>
         )}
       </main>

@@ -54,6 +54,15 @@ export default function AuthPage() {
 
         const userRole =
           (data.user?.user_metadata?.role as UserRole | undefined) ?? "buyer";
+        
+        // Gọi API init store nếu là chủ cửa hàng để đảm bảo đồng bộ session/cookie
+        if (userRole === "store_owner") {
+          await fetch("/api/store/init", { method: "POST" });
+        } else {
+          // Với buyer, có thể gọi một API nhẹ nhàng để sync cookie nếu cần
+          await fetch("/api/reservations", { method: "GET" }).catch(() => null);
+        }
+
         router.replace(userRole === "store_owner" ? "/dashboard" : "/");
       } else {
         const { data, error: signInError } =
@@ -69,6 +78,14 @@ export default function AuthPage() {
 
         const userRole =
           (data.user?.user_metadata?.role as UserRole | undefined) ?? "buyer";
+
+        // Đồng bộ session sang server-side
+        if (userRole === "store_owner") {
+          await fetch("/api/store/init", { method: "POST" });
+        } else {
+          await fetch("/api/reservations", { method: "GET" }).catch(() => null);
+        }
+
         router.replace(userRole === "store_owner" ? "/dashboard" : "/");
       }
     } catch (err) {

@@ -25,7 +25,13 @@ interface Reservation {
       address: string | null;
     } | null;
   } | null;
+  reviews: {
+    rating: number;
+    comment: string | null;
+  }[] | null;
 }
+
+type Tab = "ongoing" | "completed" | "review";
 
 export default function MyOrdersPage() {
   const router = useRouter();
@@ -33,6 +39,8 @@ export default function MyOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState<Date>(new Date());
+  const [activeTab, setActiveTab] = useState<Tab>("ongoing");
+  const [submittingReview, setSubmittingReview] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -73,9 +81,14 @@ export default function MyOrdersPage() {
               name,
               address
             )
+          ),
+          reviews (
+            rating,
+            comment
           )
         `
         )
+        .eq("user_id", user.id) // Chỉ lấy đơn hàng của người dùng hiện tại
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -100,6 +113,20 @@ export default function MyOrdersPage() {
       return r;
     });
   }, [reservations, now]);
+
+  const filteredReservations = useMemo(() => {
+    if (activeTab === "ongoing") {
+      return withComputedStatus.filter(r => r.status === "Reserved");
+    }
+    if (activeTab === "completed") {
+      return withComputedStatus.filter(r => r.status === "Completed" || r.status === "Expired");
+    }
+    // Tạm thời tab Đánh giá sẽ hiển thị các đơn đã hoàn thành
+    if (activeTab === "review") {
+      return withComputedStatus.filter(r => r.status === "Completed");
+    }
+    return [];
+  }, [withComputedStatus, activeTab]);
 
   const getStatusBadge = (status: ReservationStatus) => {
     if (status === "Reserved") {
@@ -139,6 +166,37 @@ export default function MyOrdersPage() {
     );
   };
 
+  const handleRate = async (reservationId: string, productId: string, rating: number) => {
+    setSubmittingReview(reservationId);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase.from("reviews").insert({
+      user_id: user.id,
+      product_id: productId,
+      reservation_id: reservationId,
+      rating: rating,
+    });
+
+    if (error) {
+      alert("Không thể gửi đánh giá: " + error.message);
+    } else {
+      // Refresh danh sách
+      const { data } = await supabase
+        .from("reservations")
+        .select(`
+          id, quantity, qr_code, status, expires_at, created_at,
+          products (id, name, sale_price, image_url, stores (id, name, address)),
+          reviews (rating, comment)
+        `)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      
+      if (data) setReservations(data as Reservation[]);
+    }
+    setSubmittingReview(null);
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-[#FFFDF8] pb-4">
       <header className="flex items-center justify-between px-4 pb-3 pt-4">
@@ -152,6 +210,30 @@ export default function MyOrdersPage() {
         <h1 className="text-base font-bold text-gray-900">Đơn của tôi</h1>
         <div className="h-8 w-8" />
       </header>
+
+      {/* Tabs */}
+      <div className="mb-3 flex justify-center border-b border-orange-100">
+        <div className="-mb-px flex gap-4 px-4 text-sm font-medium text-gray-500">
+          <button 
+            type="button"
+            onClick={() => setActiveTab("ongoing")}
+            className={`py-2 ${activeTab === 'ongoing' ? 'border-b-2 border-[#FF6B00] text-[#FF6B00]' : ''}`}>
+            Đang thực hiện
+          </button>
+          <button 
+            type="button"
+            onClick={() => setActiveTab("completed")}
+            className={`py-2 ${activeTab === 'completed' ? 'border-b-2 border-[#FF6B00] text-[#FF6B00]' : ''}`}>
+            Đã hoàn thành
+          </button>
+          <button 
+            type="button"
+            onClick={() => setActiveTab("review")}
+            className={`py-2 ${activeTab === 'review' ? 'border-b-2 border-[#FF6B00] text-[#FF6B00]' : ''}`}>
+            Đánh giá
+          </button>
+        </div>
+      </div>
 
       <main className="flex-1 space-y-3 px-4">
         {loading && (
@@ -171,20 +253,21 @@ export default function MyOrdersPage() {
           </div>
         )}
 
-        {!loading && !error && !withComputedStatus.length && (
-          <div className="rounded-2xl bg-orange-50 p-3 text-sm text-orange-600">
-            Bạn chưa có đơn giữ chỗ nào. Hãy khám phá deal trên trang chủ nhé!
+        {!loading && !error && !filteredReservations.length && (
+          <div className="rounded-2xl bg-orange-50 p-4 text-center text-sm text-orange-600">
+            Không có đơn hàng nào trong mục này.
           </div>
         )}
 
         {!loading &&
           !error &&
-          withComputedStatus.map((r) => {
+          filteredReservations.map((r) => {
             const badge = getStatusBadge(r.status);
             const product = r.products;
             const store = product?.stores ?? null;
             const isActiveReserved =
               r.status === "Reserved" && !!r.expires_at && new Date(r.expires_at) > now;
+            const review = r.reviews && r.reviews.length > 0 ? r.reviews[0] : null;
 
             return (
               <div
@@ -245,16 +328,62 @@ export default function MyOrdersPage() {
                   </div>
                 </div>
 
+                {/* Phần đánh giá */}
+                {activeTab === "review" && product && (
+                  <div className="mt-2 border-t border-orange-50 pt-3">
+                    {review ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 font-medium">Bạn đã đánh giá:</span>
+                        <div className="flex gap-0.5">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <span key={s} className={`text-sm ${s <= review.rating ? 'text-yellow-400' : 'text-gray-200'}`}>
+                              ★
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        <div className="text-xs text-gray-500 font-medium">Hãy để lại đánh giá của bạn:</div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-2">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={star}
+                                type="button"
+                                disabled={submittingReview === r.id}
+                                onClick={() => handleRate(r.id, product.id, star)}
+                                className="text-2xl text-gray-200 transition-colors hover:text-yellow-400 focus:text-yellow-400 active:scale-95"
+                              >
+                                ★
+                              </button>
+                            ))}
+                          </div>
+                          {submittingReview === r.id && (
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#FF6B00] border-t-transparent" />
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {isActiveReserved && (
                   <div className="mt-2 flex flex-col items-center gap-2 rounded-2xl bg-orange-50 p-3">
-                    <div className="text-xs font-semibold text-[#FF6B00]">
-                      Mã QR dùng để nhân viên xác nhận đơn
+                    <div className="text-center">
+                      <div className="text-xs font-semibold text-[#FF6B00]">
+                        Đưa mã này cho nhân viên quét
+                      </div>
+                      <div className="mt-1 text-sm font-bold text-gray-800 tracking-wider">
+                        {r.qr_code.slice(0, 8).toUpperCase()}
+                      </div>
                     </div>
                     <div className="rounded-2xl bg-white p-3 shadow-sm">
                       <QRCode
                         value={r.qr_code}
                         size={160}
-                        bgColor="transparent"
+                        bgColor="#FFFFFF"
+                        fgColor="#000000"
                       />
                     </div>
                   </div>

@@ -50,6 +50,14 @@ export default function DashboardPage() {
         return;
       }
 
+      // Lớp bảo vệ: Chỉ cho phép store_owner truy cập
+      const userRole = (user.user_metadata as any)?.role;
+      if (userRole !== 'store_owner') {
+        alert("Bạn không có quyền truy cập trang này.");
+        router.replace('/');
+        return;
+      }
+
       // Đảm bảo có profile user + cửa hàng ngay trên client, không cần API server
       await supabase
         .from("users")
@@ -137,13 +145,14 @@ export default function DashboardPage() {
           status,
           quantity,
           created_at,
-          products (
+          products!inner (
             id,
             sale_price,
             store_id
           )
         `
         )
+        .eq("products.store_id", storeData.id) // Lọc đơn hàng thuộc về cửa hàng này
         .gte("created_at", todayIso);
 
       setReservations(reservationsData ?? []);

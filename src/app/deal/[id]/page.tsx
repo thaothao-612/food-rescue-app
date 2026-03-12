@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
+import QRCode from "react-qr-code";
 import { supabase } from "@/lib/supabase";
 import type { Product } from "@/types";
 import { differenceInHours, parseISO } from "date-fns";
@@ -15,6 +16,13 @@ export default function DealDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [reservation, setReservation] = useState<{
+    id: string;
+    qr_code: string;
+    expires_at: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!productId) return;
@@ -52,16 +60,68 @@ export default function DealDetailPage() {
       } else if (!data) {
         setError("Không tìm thấy deal này.");
       } else {
-        setProduct({
+        const productData = {
           ...data,
-          store: Array.isArray(data.stores) ? data.stores[0] : data.stores,
-        } as unknown as Product);
+          store: data.stores,
+        } as Product;
+        setProduct(productData);
+
+        // Kiểm tra xem đã theo dõi cửa hàng chưa
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && data.stores?.id) {
+          const { data: followData } = await supabase
+            .from("follows")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("store_id", data.stores.id)
+            .maybeSingle();
+          
+          setIsFollowing(!!followData);
+        }
       }
       setLoading(false);
     };
 
     fetchProduct();
   }, [productId]);
+
+  const handleFollow = async () => {
+    if (!product?.store?.id) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError("Vui lòng đăng nhập để theo dõi cửa hàng.");
+      setTimeout(() => router.push("/auth"), 2000);
+      return;
+    }
+
+    setFollowLoading(true);
+    try {
+      if (isFollowing) {
+        // Hủy theo dõi
+        const { error } = await supabase
+          .from("follows")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("store_id", product.store.id);
+        
+        if (!error) setIsFollowing(false);
+      } else {
+        // Theo dõi
+        const { error } = await supabase
+          .from("follows")
+          .insert({
+            user_id: user.id,
+            store_id: product.store.id
+          });
+        
+        if (!error) setIsFollowing(true);
+      }
+    } catch (err) {
+      console.error("Follow error:", err);
+    } finally {
+      setFollowLoading(false);
+    }
+  };
 
   const expiryInfo = useMemo(() => {
     if (!product) return null;
@@ -87,20 +147,46 @@ export default function DealDetailPage() {
         }),
       });
 
+      const body = await res.json().catch(() => null);
+
       if (res.status === 401) {
-        router.push("/auth");
+        setError("Vui lòng đăng nhập để thực hiện giữ chỗ.");
+        setTimeout(() => router.push("/auth"), 2000);
+        return;
+      }
+
+      // Xử lý lỗi tranh chấp (409) hoặc các lỗi khác cần refresh dữ liệu
+      if (res.status === 409 || res.status === 400) {
+        // Fetch lại sản phẩm để cập nhật số lượng mới nhất
+        const { data: updatedProduct } = await supabase
+          .from("products")
+          .select("quantity, is_active")
+          .eq("id", product.id)
+          .single();
+        
+        if (updatedProduct) {
+          setProduct(prev => prev ? { ...prev, ...updatedProduct } : null);
+        }
+        
+        setError(body?.message ?? "Có lỗi xảy ra. Vui lòng thử lại.");
         return;
       }
 
       if (!res.ok) {
-        const body = await res.json().catch(() => null);
         setError(body?.message ?? "Không thể giữ chỗ. Vui lòng thử lại.");
         return;
       }
 
-      router.push("/my-orders");
-    } catch {
-      setError("Có lỗi xảy ra. Vui lòng thử lại.");
+      setReservation({
+        id: body.reservation_id,
+        qr_code: body.qr_code,
+        expires_at: body.expires_at,
+      });
+      // Xóa lỗi nếu có sau khi thành công
+      setError(null);
+    } catch (err) {
+      console.error("Reservation error:", err);
+      setError("Có lỗi hệ thống. Vui lòng thử lại.");
     } finally {
       setSubmitting(false);
     }
@@ -206,7 +292,7 @@ export default function DealDetailPage() {
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-100 text-lg">
             📍
           </div>
-          <div className="text-sm">
+          <div className="flex-1 text-sm">
             <div className="font-semibold text-gray-900">
               {product.store.name}
             </div>
@@ -214,6 +300,24 @@ export default function DealDetailPage() {
               {product.store.address ?? "Địa chỉ đang cập nhật"}
             </div>
           </div>
+          <button
+            type="button"
+            disabled={followLoading}
+            onClick={handleFollow}
+            className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all active:scale-95 ${
+              isFollowing
+                ? "bg-gray-100 text-gray-500"
+                : "bg-orange-50 text-[#FF6B00] shadow-sm"
+            }`}
+          >
+            {followLoading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#FF6B00] border-t-transparent" />
+            ) : isFollowing ? (
+              "Đã theo dõi"
+            ) : (
+              "+ Theo dõi"
+            )}
+          </button>
         </div>
 
         <div className="space-y-2 rounded-2xl bg-white p-3 text-sm text-gray-700 shadow-sm">
@@ -271,6 +375,66 @@ export default function DealDetailPage() {
           Giữ chỗ ngay
         </button>
       </div>
+
+      {/* QR Code Modal */}
+      {reservation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="flex flex-col items-center p-6 text-center">
+              <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-3xl">
+                ✅
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Giữ chỗ thành công!</h3>
+              <p className="mt-1 text-xs text-gray-500">
+                Hãy đưa mã này cho nhân viên cửa hàng để nhận món.
+              </p>
+            </div>
+
+            <div className="mx-6 mb-6 flex flex-col items-center gap-4 rounded-3xl bg-orange-50 p-6">
+              <div className="w-full max-w-[200px] rounded-2xl bg-white p-4 shadow-sm">
+                <QRCode
+                  value={String(reservation.qr_code)}
+                  size={256}
+                  style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                  viewBox={`0 0 256 256`}
+                  bgColor="#FFFFFF"
+                  fgColor="#000000"
+                />
+              </div>
+              <div className="text-center">
+                <div className="text-sm font-bold text-[#FF6B00]">
+                  Mã: {reservation.qr_code.slice(0, 8).toUpperCase()}
+                </div>
+                <div className="mt-1 text-[11px] text-gray-500">
+                  Hết hạn lúc: {new Date(reservation.expires_at).toLocaleTimeString("vi-VN", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-50 p-4">
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => router.push("/my-orders")}
+                  className="w-full rounded-2xl bg-[#FF6B00] py-3 text-sm font-semibold text-white shadow-md shadow-orange-200 active:scale-[0.98]"
+                >
+                  Xem đơn của tôi
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReservation(null)}
+                  className="w-full py-2 text-sm font-medium text-gray-400 active:text-gray-600"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
