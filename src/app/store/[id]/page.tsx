@@ -27,8 +27,32 @@ export default function StoreDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showMap, setShowMap] = useState(false);
+  const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
+
+  // Hàm tính khoảng cách giữa 2 tọa độ (Haversine formula)
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Bán kính Trái đất tính bằng km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) *
+        Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R * c;
+    return d.toFixed(1);
+  };
 
   useEffect(() => {
+    // Lấy vị trí người dùng
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        setUserCoords([position.coords.latitude, position.coords.longitude]);
+      });
+    }
+
     if (!storeId) return;
 
     const fetchStoreData = async () => {
@@ -140,6 +164,15 @@ export default function StoreDetailPage() {
               <span>🕒</span>
               <span>15-30 phút</span>
             </div>
+            {store.lat && store.lng && userCoords && (
+              <>
+                <span className="text-gray-300">|</span>
+                <div className="flex items-center gap-1 text-orange-600 font-medium">
+                  <span>📍</span>
+                  <span>Cách bạn {calculateDistance(userCoords[0], userCoords[1], store.lat, store.lng)} km</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -203,7 +236,7 @@ export default function StoreDetailPage() {
                     deal_count: products.length,
                     has_flash_sale: products.some(p => p.category === 'flash_sale')
                   } as any]} 
-                  userCoords={null}
+                  userCoords={userCoords}
                 />
               </div>
               <div className="absolute bottom-0 inset-x-0 bg-white p-4 border-t border-gray-100">
