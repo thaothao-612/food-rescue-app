@@ -86,6 +86,21 @@ export async function POST(request: Request) {
   const qrCode = randomUUID();
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
+  // Đảm bảo user tồn tại trong bảng public.users để tránh lỗi Foreign Key
+  const { error: userSyncError } = await supabase
+    .from("users")
+    .upsert({
+      id: user.id,
+      email: user.email,
+      full_name: (user.user_metadata as any)?.full_name ?? (user.user_metadata as any)?.name ?? null,
+      role: (user.user_metadata as any)?.role ?? 'buyer'
+    }, { onConflict: 'id' });
+
+  if (userSyncError) {
+    console.error(`[POST /api/reservations] User sync error:`, userSyncError);
+    // Vẫn tiếp tục thử insert reservation vì có thể user đã tồn tại sẵn
+  }
+
   const { data: reservation, error: reservationError } = await supabase
     .from("reservations")
     .insert({
@@ -100,8 +115,14 @@ export async function POST(request: Request) {
     .single();
 
   if (reservationError || !reservation) {
+    console.error(`[POST /api/reservations] Insert reservation error:`, reservationError);
     return NextResponse.json(
-      { message: "Không thể tạo đơn giữ chỗ" },
+      { 
+        message: "Không thể tạo đơn giữ chỗ", 
+        detail: reservationError?.message,
+        hint: reservationError?.hint,
+        code: reservationError?.code 
+      },
       { status: 500 }
     );
   }

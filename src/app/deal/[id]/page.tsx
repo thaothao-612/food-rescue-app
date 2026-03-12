@@ -13,7 +13,8 @@ export default function DealDetailPage() {
   const productId = params?.id;
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -29,58 +30,62 @@ export default function DealDetailPage() {
 
     const fetchProduct = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("products")
-        .select(
+      setFetchError(null);
+      try {
+        const { data, error } = await supabase
+          .from("products")
+          .select(
+            `
+            *,
+            stores (*)
           `
-          id,
-          name,
-          original_price,
-          sale_price,
-          quantity,
-          expiry_date,
-          category,
-          image_url,
-          is_active,
-          created_at,
-          stores (
-            id,
-            name,
-            address,
-            lat,
-            lng
           )
-        `
-        )
-        .eq("id", productId)
-        .single();
+          .eq("id", productId)
+          .maybeSingle();
 
-      if (error) {
-        setError("Không tìm thấy deal này.");
-      } else if (!data) {
-        setError("Không tìm thấy deal này.");
-      } else {
-        // Sửa lỗi TypeScript: Ép kiểu dữ liệu trả về từ Supabase
-        const storeData = Array.isArray(data.stores) ? data.stores[0] : data.stores;
-        setProduct({
-          ...data,
-          store: storeData as any,
-        } as Product);
-
-        // Kiểm tra xem đã theo dõi cửa hàng chưa
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user && (storeData as any)?.id) {
-          const { data: followData } = await supabase
-            .from("follows")
-            .select("id")
-            .eq("user_id", user.id)
-            .eq("store_id", (storeData as any).id)
-            .maybeSingle();
+        if (error) {
+          console.error("Fetch error:", error);
+          setFetchError("Lỗi khi tải dữ liệu từ hệ thống.");
+        } else if (!data) {
+          // Thử kiểm tra xem sản phẩm có tồn tại không (không join) để chẩn đoán lỗi RLS
+          const { count } = await supabase
+            .from("products")
+            .select("id", { count: 'exact', head: true })
+            .eq("id", productId);
           
-          setIsFollowing(!!followData);
+          if (count && count > 0) {
+            setFetchError("Bạn không có quyền xem thông tin chi tiết của deal này.");
+          } else {
+            setFetchError("Không tìm thấy deal này.");
+          }
+        } else {
+          // Supabase join có thể trả về object hoặc array tùy theo cấu trúc FK
+          const storeData = Array.isArray(data.stores) ? data.stores[0] : data.stores;
+          
+          setProduct({
+            ...data,
+            store: storeData || null,
+          } as any);
+
+          // Kiểm tra trạng thái theo dõi (chỉ khi đã đăng nhập)
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user && storeData?.id) {
+            const { data: followData } = await supabase
+              .from("follows")
+              .select("id")
+              .eq("user_id", user.id)
+              .eq("store_id", storeData.id)
+              .maybeSingle();
+            
+            setIsFollowing(!!followData);
+          }
         }
+      } catch (err) {
+        console.error("Unexpected error:", err);
+        setFetchError("Đã có lỗi xảy ra. Vui lòng thử lại.");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchProduct();
@@ -90,7 +95,7 @@ export default function DealDetailPage() {
     if (!product?.store?.id) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      setError("Vui lòng đăng nhập để theo dõi cửa hàng.");
+      setActionError("Vui lòng đăng nhập để theo dõi cửa hàng.");
       setTimeout(() => router.push("/auth"), 2000);
       return;
     }
@@ -103,7 +108,7 @@ export default function DealDetailPage() {
           .from("follows")
           .delete()
           .eq("user_id", user.id)
-          .eq("store_id", product.store.id);
+          .eq("store_id", product.store?.id);
         
         if (!error) setIsFollowing(false);
       } else {
@@ -112,7 +117,7 @@ export default function DealDetailPage() {
           .from("follows")
           .insert({
             user_id: user.id,
-            store_id: product.store.id
+            store_id: product.store?.id
           });
         
         if (!error) setIsFollowing(true);
@@ -133,8 +138,17 @@ export default function DealDetailPage() {
 
   const handleReserve = async () => {
     if (!product) return;
+    
+    // Kiểm tra đăng nhập ngay tại client
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setActionError("Vui lòng đăng nhập để thực hiện giữ chỗ.");
+      setTimeout(() => router.push("/auth"), 2000);
+      return;
+    }
+
     setSubmitting(true);
-    setError(null);
+    setActionError(null);
 
     try {
       const res = await fetch("/api/reservations", {
@@ -151,7 +165,7 @@ export default function DealDetailPage() {
       const body = await res.json().catch(() => null);
 
       if (res.status === 401) {
-        setError("Vui lòng đăng nhập để thực hiện giữ chỗ.");
+        setActionError("Vui lòng đăng nhập để thực hiện giữ chỗ.");
         setTimeout(() => router.push("/auth"), 2000);
         return;
       }
@@ -169,12 +183,12 @@ export default function DealDetailPage() {
           setProduct(prev => prev ? { ...prev, ...updatedProduct } : null);
         }
         
-        setError(body?.message ?? "Có lỗi xảy ra. Vui lòng thử lại.");
+        setActionError(body?.message ?? "Có lỗi xảy ra. Vui lòng thử lại.");
         return;
       }
 
       if (!res.ok) {
-        setError(body?.message ?? "Không thể giữ chỗ. Vui lòng thử lại.");
+        setActionError(body?.message ?? "Không thể giữ chỗ. Vui lòng thử lại.");
         return;
       }
 
@@ -184,10 +198,10 @@ export default function DealDetailPage() {
         expires_at: body.expires_at,
       });
       // Xóa lỗi nếu có sau khi thành công
-      setError(null);
+      setActionError(null);
     } catch (err) {
       console.error("Reservation error:", err);
-      setError("Có lỗi hệ thống. Vui lòng thử lại.");
+      setActionError("Có lỗi hệ thống. Vui lòng thử lại.");
     } finally {
       setSubmitting(false);
     }
@@ -206,11 +220,23 @@ export default function DealDetailPage() {
     );
   }
 
-  if (!product || !product.store || error) {
+  if (!product || fetchError) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#FFFDF8] px-4">
-        <div className="max-w-sm rounded-2xl bg-white p-4 text-center text-sm text-gray-600 shadow-md">
-          {error ?? "Không tìm thấy deal này hoặc cửa hàng đã đóng cửa."}
+        <div className="max-w-sm rounded-2xl bg-white p-6 text-center shadow-md">
+          <div className="mb-3 text-3xl">🔍</div>
+          <div className="text-sm font-medium text-gray-900 mb-1">
+            {fetchError ?? "Không tìm thấy deal này"}
+          </div>
+          <p className="text-xs text-gray-500 mb-4">
+            Deal này có thể đã hết hạn hoặc đã được giải cứu hết.
+          </p>
+          <button
+            onClick={() => router.push("/")}
+            className="w-full rounded-xl bg-orange-50 py-2 text-xs font-semibold text-[#FF6B00]"
+          >
+            Quay lại trang chủ
+          </button>
         </div>
       </div>
     );
@@ -295,21 +321,21 @@ export default function DealDetailPage() {
           </div>
           <div className="flex-1 text-sm">
             <div className="font-semibold text-gray-900">
-              {product.store.name}
+              {product.store?.name ?? "Cửa hàng đang cập nhật"}
             </div>
             <div className="text-xs text-gray-600">
-              {product.store.address ?? "Địa chỉ đang cập nhật"}
+              {product.store?.address ?? "Địa chỉ đang cập nhật"}
             </div>
           </div>
           <button
             type="button"
-            disabled={followLoading}
+            disabled={followLoading || !product.store}
             onClick={handleFollow}
             className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all active:scale-95 ${
               isFollowing
                 ? "bg-gray-100 text-gray-500"
                 : "bg-orange-50 text-[#FF6B00] shadow-sm"
-            }`}
+            } disabled:opacity-50`}
           >
             {followLoading ? (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#FF6B00] border-t-transparent" />
@@ -359,9 +385,9 @@ export default function DealDetailPage() {
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-orange-100 bg-white/95 px-4 pb-4 pt-2 backdrop-blur">
-        {error && (
+        {actionError && (
           <div className="mb-2 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">
-            {error}
+            {actionError}
           </div>
         )}
         <button
