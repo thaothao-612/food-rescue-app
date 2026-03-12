@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, Suspense } from "react";
 import useSWR from "swr";
 import { supabase } from "@/lib/supabase";
 import { Product, Store } from "@/types";
@@ -27,7 +27,7 @@ const fetcher = async (): Promise<Product[]> => {
   return data?.map((row: any) => ({ ...row, store: row.stores })) ?? [];
 };
 
-export default function CategoriesPage() {
+function CategoriesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>("category");
@@ -177,5 +177,17 @@ export default function CategoriesPage() {
         </div>
       </nav>
     </div>
+  );
+}
+
+export default function CategoriesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-[#FFFDF8]">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#FF6B00] border-t-transparent"></div>
+      </div>
+    }>
+      <CategoriesContent />
+    </Suspense>
   );
 }
