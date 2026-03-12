@@ -79,7 +79,8 @@ export async function PATCH(request: Request) {
   }
 
   // Sửa lỗi TypeScript: Ép kiểu dữ liệu trả về từ Supabase
-  const product = Array.isArray(reservation.products) ? reservation.products[0] : (reservation.products as any);
+  const product = Array.isArray(reservation.products) ? (reservation.products[0] as any) : (reservation.products as any);
+  const user_detail = Array.isArray(reservation.users) ? (reservation.users[0] as any) : (reservation.users as any);
 
   if (!product || product.store_id !== store.id) {
     return NextResponse.json(
@@ -123,8 +124,8 @@ export async function PATCH(request: Request) {
       status: "Completed",
       quantity: reservation.quantity,
       expires_at: reservation.expires_at,
-      users: reservation.users,
-      products: reservation.products,
+      users: user_detail,
+      products: product,
     },
     { status: 200 }
   );

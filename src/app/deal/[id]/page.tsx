@@ -60,20 +60,21 @@ export default function DealDetailPage() {
       } else if (!data) {
         setError("Không tìm thấy deal này.");
       } else {
-        const productData = {
+        // Sửa lỗi TypeScript: Ép kiểu dữ liệu trả về từ Supabase
+        const storeData = Array.isArray(data.stores) ? data.stores[0] : data.stores;
+        setProduct({
           ...data,
-          store: data.stores,
-        } as Product;
-        setProduct(productData);
+          store: storeData as any,
+        } as Product);
 
         // Kiểm tra xem đã theo dõi cửa hàng chưa
         const { data: { user } } = await supabase.auth.getUser();
-        if (user && data.stores?.id) {
+        if (user && (storeData as any)?.id) {
           const { data: followData } = await supabase
             .from("follows")
             .select("id")
             .eq("user_id", user.id)
-            .eq("store_id", data.stores.id)
+            .eq("store_id", (storeData as any).id)
             .maybeSingle();
           
           setIsFollowing(!!followData);

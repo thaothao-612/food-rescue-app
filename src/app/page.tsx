@@ -55,10 +55,14 @@ const fetcher = async (): Promise<Product[]> => {
   }
 
   return (
-    data?.map((row: any) => ({
-      ...row,
-      store: row.stores as Store,
-    })) ?? []
+    data?.map((row: any) => {
+      // Sửa lỗi TypeScript: Ép kiểu dữ liệu trả về từ Supabase (có thể là array hoặc object)
+      const storeData = Array.isArray(row.stores) ? row.stores[0] : row.stores;
+      return {
+        ...row,
+        store: storeData as Store,
+      };
+    }) ?? []
   );
 };
 

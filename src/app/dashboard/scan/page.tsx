@@ -63,8 +63,13 @@ export default function ScanPage() {
 
       if (!res.ok) {
         setError(data?.message ?? "Mã không hợp lệ.");
-      } else {
-        setResult(data as ReservationDetail);
+      } else if (data) {
+        // Sửa lỗi TypeScript: Ép kiểu dữ liệu trả về từ Supabase (có thể là array hoặc object)
+        const productData = Array.isArray(data.products) ? data.products[0] : data.products;
+        setResult({
+          ...data,
+          products: productData as any
+        } as ReservationDetail);
       }
     } catch {
       setError("Có lỗi xảy ra. Vui lòng thử lại.");

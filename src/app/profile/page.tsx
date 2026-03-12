@@ -72,7 +72,9 @@ export default function ProfilePage() {
 
       reservations?.forEach(r => {
         rescuedItems += r.quantity;
-        const savingsPerItem = (r.products?.original_price ?? 0) - (r.products?.sale_price ?? 0);
+        // Sửa lỗi TypeScript: Ép kiểu dữ liệu trả về từ Supabase
+        const product = Array.isArray(r.products) ? (r.products[0] as any) : (r.products as any);
+        const savingsPerItem = (product?.original_price ?? 0) - (product?.sale_price ?? 0);
         totalSavings += savingsPerItem * r.quantity;
       });
 

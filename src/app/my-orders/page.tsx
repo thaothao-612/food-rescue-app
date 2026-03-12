@@ -94,7 +94,20 @@ export default function MyOrdersPage() {
       if (error) {
         setError("Không tải được danh sách đơn.");
       } else {
-        setReservations((data as Reservation[]) ?? []);
+        // Sửa lỗi TypeScript: Ép kiểu dữ liệu trả về từ Supabase (có thể là array hoặc object)
+        const mappedReservations = (data ?? []).map((r: any) => {
+          const productData = Array.isArray(r.products) ? r.products[0] : r.products;
+          const storeData = productData && Array.isArray(productData.stores) ? productData.stores[0] : productData?.stores;
+          
+          return {
+            ...r,
+            products: productData ? {
+              ...productData,
+              stores: storeData || null
+            } : null
+          };
+        });
+        setReservations(mappedReservations as Reservation[]);
       }
       setLoading(false);
     };
