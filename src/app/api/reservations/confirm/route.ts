@@ -78,7 +78,10 @@ export async function PATCH(request: Request) {
     );
   }
 
-  if (!reservation.products || reservation.products.store_id !== store.id) {
+  // Sửa lỗi TypeScript: Ép kiểu dữ liệu trả về từ Supabase
+  const product = Array.isArray(reservation.products) ? reservation.products[0] : (reservation.products as any);
+
+  if (!product || product.store_id !== store.id) {
     return NextResponse.json(
       { message: "Mã này không thuộc cửa hàng của bạn" },
       { status: 403 }
