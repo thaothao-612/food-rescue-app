@@ -102,9 +102,9 @@ function CategoriesContent() {
       <main className="flex-1 p-4 space-y-3">
         {activeTab === 'category' ? (
           categories.map(cat => (
-            <Link key={cat} href={`/?category=${cat}`} className="flex w-full items-center justify-between p-4 rounded-2xl bg-white shadow-sm border border-orange-50 hover:border-orange-200 transition-all">
+            <Link key={cat} href={`/?filter=${cat}`} className="flex w-full items-center justify-between p-4 rounded-2xl bg-white shadow-sm border border-orange-50 hover:border-orange-200 transition-all">
               <div className="flex items-center gap-3">
-                <span className="text-xl">{cat === "flash_sale" ? "⚡" : "🛒"}</span>
+                <span className="text-xl">{cat === "flash_sale" ? "⚡" : "📉"}</span>
                 <span className="font-semibold text-gray-700">{getCategoryLabel(cat)}</span>
               </div>
               <span className="text-orange-300">›</span>

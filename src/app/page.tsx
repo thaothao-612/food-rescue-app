@@ -7,6 +7,8 @@ import { Product, ProductCategory, Store } from "@/types";
 import { ProductCard } from "@/components/ProductCard";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 type FilterTab = "all" | "flash_sale" | "grocery";
 
@@ -65,9 +67,24 @@ const fetcher = async (): Promise<Product[]> => {
 };
 
 export default function HomePage() {
-  const [filter, setFilter] = useState<FilterTab>("all");
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#FFFDF8]"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[#FF6B00] border-t-transparent"></div></div>}>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeContent() {
+  const searchParams = useSearchParams();
+  const initialFilter = (searchParams.get("filter") as FilterTab) || "all";
+  const [filter, setFilter] = useState<FilterTab>(initialFilter);
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    const f = searchParams.get("filter") as FilterTab;
+    if (f) setFilter(f);
+  }, [searchParams]);
   const [userLocation, setUserLocation] = useState<string>("Đang xác định vị trí...");
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [user, setUser] = useState<any>(null);
