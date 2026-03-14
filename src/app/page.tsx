@@ -181,7 +181,7 @@ export default function HomePage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-sm overflow-hidden border border-orange-50">
-              <img src="/logo.png" alt="EcoEat Logo" className="h-14 w-14 object-contain" />
+              <img src="/logo.png" alt="EcoEat Logo" className="h-full w-full object-cover" />
             </div>
             <div className="flex flex-col">
               <span className="text-xl font-black tracking-tight text-gray-900 leading-none mb-1">
