@@ -24,7 +24,7 @@ export function ProductCard({ product }: ProductCardProps) {
           className: "bg-red-500 text-white",
         }
       : {
-          label: "GROCERY",
+          label: "CẬN DATE",
           className: "bg-emerald-500 text-white",
         };
 

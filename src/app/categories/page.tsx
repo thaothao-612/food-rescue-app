@@ -24,7 +24,7 @@ const fetcher = async (): Promise<Product[]> => {
 
 function getCategoryLabel(cat: string) {
   if (cat === 'flash_sale') return 'Flash Sale Cuối Ngày';
-  if (cat === 'grocery') return 'Đi chợ online';
+  if (cat === 'grocery') return 'Hàng cận date giá sốc';
   return cat;
 }
 
@@ -42,7 +42,11 @@ function CategoriesContent() {
 
   const categories = useMemo(() => {
     const cats = new Set<string>();
-    data?.forEach(p => { if (p.category) cats.add(p.category); });
+    data?.forEach(p => { 
+      if (p.category === 'flash_sale' || p.category === 'grocery') {
+        cats.add(p.category); 
+      }
+    });
     return Array.from(cats);
   }, [data]);
 

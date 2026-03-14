@@ -243,6 +243,16 @@ export default function HomePage() {
               >
                 Flash Sale 🔥
               </button>
+              <button
+                onClick={() => setFilter("grocery")}
+                className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
+                  filter === "grocery"
+                    ? "bg-[#FF6B00] text-white shadow-md shadow-orange-100"
+                    : "bg-white text-gray-500 shadow-sm"
+                }`}
+              >
+                Hàng cận date 📉
+              </button>
             </div>
             <button
               onClick={() => setViewMode(viewMode === "list" ? "map" : "list")}
