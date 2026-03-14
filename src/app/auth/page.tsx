@@ -101,10 +101,13 @@ export default function AuthPage() {
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-md">
         <div className="mb-6 text-center">
-          <div className="mb-2 text-2xl font-bold text-[#FF6B00]">
-            🍊 Food Rescue
+          <div className="mb-4 flex flex-col items-center justify-center gap-2">
+            <img src="/logo.png" alt="EcoEat Logo" className="h-16 w-16 object-contain" />
+            <div className="text-3xl font-black tracking-tight text-gray-900">
+              Eco<span className="text-[#FF6B00]">Eat</span>
+            </div>
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 font-medium">
             Cùng cứu thực phẩm, nhận deal ngon mỗi ngày
           </p>
         </div>

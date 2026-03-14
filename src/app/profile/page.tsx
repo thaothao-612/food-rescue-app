@@ -222,7 +222,7 @@ export default function ProfilePage() {
         </div>
 
         <div className="py-4 text-center text-[10px] text-gray-300">
-          Food Rescue v1.0.0
+          EcoEat v1.0.0
         </div>
       </main>
     </div>

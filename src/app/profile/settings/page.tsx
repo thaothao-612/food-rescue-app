@@ -158,7 +158,7 @@ export default function SettingsPage() {
         <div className="rounded-2xl bg-white p-4 border border-orange-50 space-y-3">
           <h3 className="text-xs font-bold text-gray-400 uppercase">Thông tin khác</h3>
           <p className="text-[11px] text-gray-500 leading-relaxed">
-            Mọi thay đổi về thông tin cá nhân sẽ được áp dụng ngay lập tức cho các đơn hàng và tương tác sau này của bạn trên ứng dụng Food Rescue.
+            Mọi thay đổi về thông tin cá nhân sẽ được áp dụng ngay lập tức cho các đơn hàng và tương tác sau này của bạn trên ứng dụng EcoEat.
           </p>
         </div>
       </main>
