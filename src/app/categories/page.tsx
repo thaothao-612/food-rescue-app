@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { Product, Store } from "@/types";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ProductCard } from "@/components/ProductCard";
 
 type Tab = "category" | "store";
 
@@ -32,11 +33,18 @@ function CategoriesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>(searchParams.get('tab') as Tab || "category");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
-  }, []);
+    
+    // Nếu có filter từ URL, hiển thị ngay danh mục đó
+    const filter = searchParams.get("filter");
+    if (filter && (filter === 'flash_sale' || filter === 'grocery')) {
+      setSelectedCategory(filter);
+    }
+  }, [searchParams]);
 
   const { data, isLoading } = useSWR<Product[]>("products", fetcher);
 
@@ -55,6 +63,11 @@ function CategoriesContent() {
     data?.forEach(p => { if (p.store) storeMap.set(p.store.id, p.store); });
     return Array.from(storeMap.values());
   }, [data]);
+
+  const filteredProducts = useMemo(() => {
+    if (!selectedCategory) return [];
+    return data?.filter(p => p.category === selectedCategory) ?? [];
+  }, [data, selectedCategory]);
 
   if (isLoading) {
     return (
@@ -99,16 +112,47 @@ function CategoriesContent() {
         </div>
       </div>
 
-      <main className="flex-1 p-4 space-y-3">
-        {activeTab === 'category' ? (
+      <main className="flex-1 p-4 space-y-4">
+        {selectedCategory ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">
+                {getCategoryLabel(selectedCategory)}
+              </h2>
+              <button 
+                onClick={() => setSelectedCategory(null)}
+                className="text-sm font-medium text-[#FF6B00]"
+              >
+                Quay lại
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {filteredProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+            {filteredProducts.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <span className="mb-2 text-4xl">🥡</span>
+                <p className="text-sm text-gray-500">
+                  Hiện tại không có sản phẩm nào trong mục này
+                </p>
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'category' ? (
           categories.map(cat => (
-            <Link key={cat} href={`/?filter=${cat}`} className="flex w-full items-center justify-between p-4 rounded-2xl bg-white shadow-sm border border-orange-50 hover:border-orange-200 transition-all">
+            <button 
+              key={cat} 
+              onClick={() => setSelectedCategory(cat)}
+              className="flex w-full items-center justify-between p-4 rounded-2xl bg-white shadow-sm border border-orange-50 hover:border-orange-200 transition-all"
+            >
               <div className="flex items-center gap-3">
                 <span className="text-xl">{cat === "flash_sale" ? "⚡" : "📉"}</span>
                 <span className="font-semibold text-gray-700">{getCategoryLabel(cat)}</span>
               </div>
               <span className="text-orange-300">›</span>
-            </Link>
+            </button>
           ))
         ) : (
           stores.map(store => (
